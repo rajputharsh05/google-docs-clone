@@ -1,73 +1,113 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import ReactQuill from "react-quill"
-import Quill from "quill";
-
-import io from "socket.io-client"
-import "./Editor.css"
+import React, { useEffect, useRef, useState } from "react";
+import ReactQuill from "react-quill";
+import io from "socket.io-client";
+import "react-quill/dist/quill.snow.css";
+import "./Editor.css";
+import { useParams } from "react-router-dom";
 
 const TOOLBAR_OPTIONS = [
-  ['bold', 'italic', 'underline', 'strike'],        
+  ['bold', 'italic', 'underline', 'strike'],
   [{ 'font': [] }],
-  [{ 'header': 1 }, { 'header': 2 }],               
-  [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-  [{ 'script': 'sub'}, { 'script': 'super' }],                                     
-  [{ 'size': ['small', false, 'large', 'huge'] }],  
+  [{ 'header': 1 }, { 'header': 2 }],
+  [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+  [{ 'script': 'sub' }, { 'script': 'super' }],
+  [{ 'size': ['small', false, 'large', 'huge'] }],
   [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
-  [{ 'color': [] }, { 'background': [] }],          
+  [{ 'color': [] }, { 'background': [] }],
   [{ 'align': [] }],
-  ['clean']         
-]
+  ['clean']
+];
 
-const Editor = ()=>{
-  
+const Editor = () => {
 
-    const [socket , setSocket] = useState();
-    const [value , setValue] = useState("");
+  const { ID : documentId} = useParams();
+  const [socket, setSocket] = useState(null);
+  const quillRef = useRef(null);
+
+  useEffect(() => {
+    const socketInstance = io("http://localhost:4000/");
+    setSocket(socketInstance);
+
+    const quill = quillRef.current.getEditor();
+    quill.disable();
+
+    return () => {
+      socketInstance.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (socket === null) return;
+
+    const handleEditorChange = (delta) => {
+      if (quillRef.current) {
+        const quill = quillRef.current.getEditor();
+        quill.updateContents(delta);
+      }
+    };
+
+    socket.on('change', handleEditorChange);
+
+    return () => {
+      socket.off('change', handleEditorChange);
+    };
+  }, [socket]);
+
+  console.log(documentId);
 
 
-    useEffect( () => {
 
-        const s = io("http://localhost:4000/");
-        
-        setSocket(s)
+  useEffect(()=>{
 
-        return () => {
-            s.disconnect();
-        } 
-    },[])
+    if(socket == null) return;
+    const quill = quillRef.current.getEditor();
+    const interval = setInterval(()=>{
+        socket.emit("save-document",quill.getContents())
+    }, 2000)
 
-   
 
-    function handlechange(content , delta , source ,editor){
-        if(source === "user" )
-        {
-            const data = editor.getContents();
-            socket.emit("send-change",data);
-        }
+    return () =>{
+        clearInterval(interval)
     }
 
 
-    useEffect(()=> {
-        if(socket == null) return;
+  },[socket])
 
-        socket.on('change',(delta) => {
-            setValue(delta);
-        });
+  useEffect(() => {
 
-        return () => {
-            socket.off('change');
+    if(socket == null) return
+
+
+    socket.on("load-document", (document) => {
+        if(quillRef.current){
+            const quill = quillRef.current.getEditor();
+            console.log(document);
+            quill.updateContents(document);
+            quill.enable()
         }
-    },[socket]);
+    })
 
-    return (
-        <ReactQuill 
-        value={value}
-        className = "container" 
-        modules = {{ toolbar : TOOLBAR_OPTIONS }}
-        onChange={handlechange}
-        >
-        </ReactQuill>
-    )
-}
+
+    socket.emit('get-document',documentId)
+
+  },[socket,documentId])
+
+  const handleQuillChange = (content, delta, source, editor) => {
+    if (source === "user" && socket !== null) {
+      socket.emit("send-change", delta);
+    }
+  };
+
+
+
+  return (
+    <ReactQuill
+      ref={quillRef}
+      className="container"
+      modules={{ toolbar: TOOLBAR_OPTIONS }}
+      onChange={handleQuillChange}
+    />
+  );
+};
 
 export default Editor;

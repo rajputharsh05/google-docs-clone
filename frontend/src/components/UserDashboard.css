@@ -1,0 +1,31 @@
+.root{
+    margin: 0;
+    padding: 0;
+}
+
+.root{
+    justify-content: center;
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+.nav{
+    width: 100vw;
+    height: 15vh;
+    background-color: blue;
+    position: absolute;
+    top: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.docs{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap:2rem;
+    flex-direction: column;
+}
